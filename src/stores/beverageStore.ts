@@ -21,6 +21,7 @@ import {
   query,
   where,
   Unsubscribe,
+  addDoc,
 } from "firebase/firestore";
 import type { User } from "firebase/auth";
 
@@ -40,6 +41,8 @@ export const useBeverageStore = defineStore("BeverageStore", {
     user: null as User | null,
     snapshotUnsubscribe: null as Unsubscribe | null,
   }),
+
+
 
   actions: {
     init() {
@@ -131,6 +134,8 @@ export const useBeverageStore = defineStore("BeverageStore", {
         });
     },
 
+
+
     showBeverage() {
       if (!this.currentBeverage) return;
       this.currentName = this.currentBeverage.name;
@@ -145,7 +150,76 @@ export const useBeverageStore = defineStore("BeverageStore", {
         this.currentSyrup
       );
     },
-    makeBeverage() {},
-    setUser(user: User | null) {},
+    
+   async makeBeverage() {
+    //Checks whether a user is signed in,
+    if (!this.user) {
+      return "No user logged in, please sign in first.";
+    }
+    // Checks whether all required fields are filled in,
+    if (
+      !this.currentName ||
+      !this.currentBase ||
+      !this.currentSyrup ||
+      !this.currentCreamer
+    ) {
+      return "Please complete all beverage options and the name before making a beverage.";
+    }
+    //Writes the beverage document to Firestore,
+    const newBeverage  = {
+        name: this.currentName,
+        temp: this.currentTemp,
+        base: this.currentBase,
+        creamer: this.currentCreamer,
+        syrup: this.currentSyrup,
+      };
+    await addDoc(collection(db, "beverages"), newBeverage); // Add new beverage to Firestore
+    this.beverages.push(newBeverage as BeverageType); // Update local state
+    this.currentName = "";
+    //Updates the store state so the UI responds at once,
+    this.currentBeverage = newBeverage as BeverageType;
+    this.showBeverage();
+    //Returns a short message such as:
+    return `Beverage ${newBeverage.name} made successfully!`;
+   },
+
+
+   setUser(user: User | null) {
+    //Saves the Firebase user in the store,
+    this.user = user;
+
+    //Stops the previous Firestore listener when the user changes,
+    if (this.snapshotUnsubscribe) {
+    this.snapshotUnsubscribe();
+    this.snapshotUnsubscribe = null;
+    }
+    //Starts a new listener for the new user,
+    if (user) {
+      const beverageQuery = query(
+        collection(db, "beverages"),
+        where("userId", "==", user.uid)
+      );
+    //Updates beverage data when Firestore reports changes,
+      this.snapshotUnsubscribe = onSnapshot(beverageQuery, (querySnapshot) => {
+        const beverages: BeverageType[] = [];
+        querySnapshot.forEach((doc) => {
+          beverages.push({
+            id: doc.id,
+            name: doc.data().name,
+            temp: doc.data().temp,
+            base: doc.data().base,
+            syrup: doc.data().syrup,
+            creamer: doc.data().creamer,
+          } as BeverageType);
+        });
+        this.beverages = beverages;
+      });
+    }
+    //Sets currentBeverage correctly when the beverage list updates.
+    if (this.currentBeverage) {
+      const updatedBeverage = this.beverages.find((b) => b.id === this.currentBeverage?.id);
+      this.currentBeverage = updatedBeverage || null;
+    }
+   },
   },
 });
