@@ -1,7 +1,6 @@
 <template>
   <div>
     <Beverage :isIced="beverageStore.currentTemp === 'Cold'" />
-
     <ul>
       <li>
         <template v-for="temp in beverageStore.temps" :key="temp">
@@ -71,7 +70,7 @@
     </ul>
 
     <div class="auth-row">
-      <button @click="withGoogle">Sign in with Google</button>
+      <button @click="withGoogle" >{{ sign_in_out }}</button>
     </div>
     <input
       v-model="beverageStore.currentName"
@@ -109,6 +108,7 @@ const beverageStore = useBeverageStore();
 beverageStore.init();
 
 const message = ref("");
+const sign_in_out = ref("Sign In with Google");
 
 const showMessage = (txt: string) => {
   message.value = txt;
@@ -117,10 +117,48 @@ const showMessage = (txt: string) => {
   }, 5000);
 };
 
-const withGoogle = async () => {};
+import { 
+  getAuth,
+  signInWithPopup,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  GoogleAuthProvider, 
+  signOut
+ } from "firebase/auth";
 
-const handleMakeBeverage = () => {
-  const txt = beverageStore.makeBeverage();
+const withGoogle = async () => {
+  
+  //Sign in the user with Google,
+  if (sign_in_out.value === "Sign Out") {
+    const auth = getAuth();
+    await signOut(auth);
+    beverageStore.setUser(null);
+    sign_in_out.value = "Sign In with Google";
+    showMessage("Signed out successfully");
+  }
+  if (sign_in_out.value === "Sign In with Google") {
+  const auth = getAuth();
+  const provider = new GoogleAuthProvider();
+  try {
+    await signInWithPopup(auth, provider);
+  } catch (error) {
+    showMessage("Sign in failed");
+  }
+  signInWithEmailAndPassword(auth, "User_email", "User_password");
+  //display user list of beverages when signed in,
+  beverageStore.setUser(auth.currentUser);
+}
+  if (beverageStore.user) {
+    sign_in_out.value = "Sign Out";
+    showMessage(`Signed in as ${beverageStore.user.displayName}`);
+  }
+
+  
+};
+
+
+const handleMakeBeverage = async () => {
+  const txt = await beverageStore.makeBeverage();
   showMessage(txt);
 };
 </script>
