@@ -5,11 +5,13 @@ import {
   SyrupType,
   BeverageType,
 } from "../types/beverage";
+
 import tempretures from "../data/tempretures.json";
 import bases from "../data/bases.json";
 import syrups from "../data/syrups.json";
 import creamers from "../data/creamers.json";
 import db from "../firebase.ts";
+
 import {
   collection,
   getDocs,
@@ -21,7 +23,6 @@ import {
   query,
   where,
   Unsubscribe,
-  addDoc,
 } from "firebase/firestore";
 import type { User } from "firebase/auth";
 
@@ -150,7 +151,7 @@ export const useBeverageStore = defineStore("BeverageStore", {
         this.currentSyrup
       );
     },
-    
+
    async makeBeverage() {
     //Checks whether a user is signed in,
     if (!this.user) {
@@ -165,60 +166,77 @@ export const useBeverageStore = defineStore("BeverageStore", {
     ) {
       return "Please complete all beverage options and the name before making a beverage.";
     }
-    //Writes the beverage document to Firestore,
+    //Builds a unique beverage id,
+    const beverageId = `${this.currentName}-${this.currentTemp}-${this.currentBase.id}-${this.currentSyrup.id}-${this.currentCreamer.id}`;
+
+    //Writes the beverage document to Firestore, including uid
     const newBeverage  = {
+        id: beverageId,
         name: this.currentName,
         temp: this.currentTemp,
         base: this.currentBase,
         creamer: this.currentCreamer,
         syrup: this.currentSyrup,
+        uid: this.user.uid,
       };
-    await addDoc(collection(db, "beverages"), newBeverage); // Add new beverage to Firestore
-    this.beverages.push(newBeverage as BeverageType); // Update local state
+    await setDoc(doc(db, "beverages", beverageId), newBeverage); // Add new beverage to Firestore
+    
+    //Updates the store state so the UI responds at once
     this.currentName = "";
-    //Updates the store state so the UI responds at once,
-    this.currentBeverage = newBeverage as BeverageType;
     this.showBeverage();
+
     //Returns a short message such as:
     return `Beverage ${newBeverage.name} made successfully!`;
    },
 
 
+
+
+
+
+
    setUser(user: User | null) {
-    //Saves the Firebase user in the store,
+    //Saves the Firebase user object in the store,
     this.user = user;
 
     //Stops the previous Firestore listener when the user changes,
     if (this.snapshotUnsubscribe) {
-    this.snapshotUnsubscribe();
-    this.snapshotUnsubscribe = null;
+      this.snapshotUnsubscribe();
+      this.snapshotUnsubscribe = null;
     }
     //Starts a new listener for the new user,
     if (user) {
       const beverageQuery = query(
         collection(db, "beverages"),
-        where("userId", "==", user.uid)
+        where("uid", "==", user.uid)
       );
-    //Updates beverage data when Firestore reports changes,
-      this.snapshotUnsubscribe = onSnapshot(beverageQuery, (querySnapshot) => {
-        const beverages: BeverageType[] = [];
-        querySnapshot.forEach((doc) => {
-          beverages.push({
-            id: doc.id,
-            name: doc.data().name,
-            temp: doc.data().temp,
-            base: doc.data().base,
-            syrup: doc.data().syrup,
-            creamer: doc.data().creamer,
-          } as BeverageType);
-        });
-        this.beverages = beverages;
-      });
-    }
-    //Sets currentBeverage correctly when the beverage list updates.
-    if (this.currentBeverage) {
-      const updatedBeverage = this.beverages.find((b) => b.id === this.currentBeverage?.id);
-      this.currentBeverage = updatedBeverage || null;
+
+//Updates beverage data when Firestore reports changes,
+this.snapshotUnsubscribe = onSnapshot(beverageQuery, (querySnapshot) => {
+  const beverages: BeverageType[] = [];
+
+  querySnapshot.forEach((d) => {
+    const data = d.data();
+    beverages.push({
+      id: data.id,
+      name: data.name,
+      temp: data.temp,
+      base: data.base,
+      syrup: data.syrup,
+      creamer: data.creamer,
+      uid: data.uid,
+    });
+  });
+
+  this.beverages = beverages;
+  this.currentBeverage = beverages[0] || null;
+  this.showBeverage();
+});
+    } else {
+      // If no user, clear beverages and currentBeverage
+      this.beverages = [];
+      this.currentBeverage = null;
+      this.currentName = "";
     }
    },
   },
