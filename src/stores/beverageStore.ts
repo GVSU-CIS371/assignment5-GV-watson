@@ -137,6 +137,9 @@ export const useBeverageStore = defineStore("BeverageStore", {
 
 
 
+
+
+
     showBeverage() {
       if (!this.currentBeverage) return;
       this.currentName = this.currentBeverage.name;
@@ -151,6 +154,11 @@ export const useBeverageStore = defineStore("BeverageStore", {
         this.currentSyrup
       );
     },
+
+
+
+
+
 
    async makeBeverage() {
     //Checks whether a user is signed in,
@@ -193,25 +201,25 @@ export const useBeverageStore = defineStore("BeverageStore", {
 
 
 
-
-
    setUser(user: User | null) {
     //Saves the Firebase user object in the store,
+    //Stops the previous Firestore listener when the user changes,
+    //Starts a new listener for the new user,
+    //Updates beverage data when Firestore reports changes,
+
+
     this.user = user;
 
-    //Stops the previous Firestore listener when the user changes,
     if (this.snapshotUnsubscribe) {
       this.snapshotUnsubscribe();
       this.snapshotUnsubscribe = null;
     }
-    //Starts a new listener for the new user,
     if (user) {
       const beverageQuery = query(
         collection(db, "beverages"),
         where("uid", "==", user.uid)
       );
 
-//Updates beverage data when Firestore reports changes,
 this.snapshotUnsubscribe = onSnapshot(beverageQuery, (querySnapshot) => {
   const beverages: BeverageType[] = [];
 
