@@ -1,7 +1,7 @@
 <template>
   <div>
-    <Beverage :isIced="beverageStore.currentTemp === 'Cold'" />
-
+    <Beverage :isIced="beverageStore.currentTemp === 'Cold'" :base="beverageStore.currentBase"
+      :creamer="beverageStore.currentCreamer" :syrup="beverageStore.currentSyrup" />
     <ul>
       <li>
         <template v-for="temp in beverageStore.temps" :key="temp">
@@ -71,15 +71,17 @@
     </ul>
 
     <div class="auth-row">
-      <button @click="withGoogle">Sign in with Google</button>
+      <span v-if="beverageStore.user" class="user-label"        
+        >Signed in as {{ beverageStore.user.displayName }}</span>
+      <span v-else class="hint">Please sign in to see your beverages.</span>
+      <button @click="withGoogle" >{{ sign_in_out }}</button>
     </div>
-    <input
-      v-model="beverageStore.currentName"
-      type="text"
-      placeholder="Beverage Name"
-    />
 
-    <button @click="handleMakeBeverage">🍺 Make Beverage</button>
+    <input v-model="beverageStore.currentName"
+      type="text"
+      placeholder="Beverage Name"/>
+    <button @click="handleMakeBeverage"
+    :disabled="!beverageStore.user">🍺 Make Beverage</button>
 
     <p v-if="message" class="status-message">
       {{ message }}
@@ -101,7 +103,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, } from "vue";
 import Beverage from "./components/Beverage.vue";
 import { useBeverageStore } from "./stores/beverageStore";
 
@@ -109,6 +111,7 @@ const beverageStore = useBeverageStore();
 beverageStore.init();
 
 const message = ref("");
+const sign_in_out = ref("Sign In with Google");
 
 const showMessage = (txt: string) => {
   message.value = txt;
@@ -117,11 +120,44 @@ const showMessage = (txt: string) => {
   }, 5000);
 };
 
-const withGoogle = async () => {};
+import { 
+  getAuth,
+  signInWithPopup,
+  //createUserWithEmailAndPassword,
+  //signInWithEmailAndPassword,
+  GoogleAuthProvider, 
+  signOut
+ } from "firebase/auth";
 
-const handleMakeBeverage = () => {
-  const txt = beverageStore.makeBeverage();
+const withGoogle = async () => {
+  const auth = getAuth();
+  
+  //Sign in the user with Google,
+ if (sign_in_out.value === "Sign Out") {
+    await signOut(auth);
+    beverageStore.setUser(null);
+    sign_in_out.value = "Sign In with Google";
+    showMessage("Signed out successfully");
+    return;
+  }
+   try {
+    const provider = new GoogleAuthProvider();
+    const result = await signInWithPopup(auth, provider);
+
+    beverageStore.setUser(result.user);
+    sign_in_out.value = "Sign Out";
+    showMessage(`Signed in as ${result.user.displayName}`);
+
+  } catch (error) {
+    console.error(error);
+    showMessage("Sign in failed");
+  }
+};
+
+const handleMakeBeverage = async () => {
+  const txt = await beverageStore.makeBeverage();
   showMessage(txt);
+  
 };
 </script>
 
